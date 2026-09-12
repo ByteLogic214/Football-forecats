@@ -1,0 +1,64 @@
+name: pronosticos-futbol
+
+on:
+  schedule:
+    - cron: "30 8 * * *"    # 08:30 UTC — previa a la jornada europea
+    - cron: "0 14 * * *"    # 14:00 UTC — refresco de cuotas
+  workflow_dispatch:
+    inputs:
+      fixture_date:
+        description: "Fecha YYYY-MM-DD (vacío = hoy UTC)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dependencias
+        run: pip install -r requirements.txt
+
+      - name: Tests del motor
+        run: python -m pytest -q
+
+      - name: Ejecutar modelo
+        env:
+          STATS_API_KEY: ${{ secrets.STATS_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          COMPETITION_IDS: ${{ vars.COMPETITION_IDS }}
+          ODDS_REGIONS: ${{ vars.ODDS_REGIONS || 'eu,uk' }}
+          MIN_EDGE: ${{ vars.MIN_EDGE || '0.04' }}
+          MIN_PROB: ${{ vars.MIN_PROB || '0.55' }}
+          MAX_PICKS: ${{ vars.MAX_PICKS || '8' }}
+          BANKROLL: ${{ vars.BANKROLL || '1000' }}
+          KELLY_FRACTION: ${{ vars.KELLY_FRACTION || '0.25' }}
+          MAX_STAKE_PCT: ${{ vars.MAX_STAKE_PCT || '0.03' }}
+          SOT_LOOKBACK: ${{ vars.SOT_LOOKBACK || '5' }}
+          FIXTURE_DATE: ${{ github.event.inputs.fixture_date }}
+        run: python -m src.main
+
+      - name: Subir reportes (artefacto)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: picks-${{ github.run_id }}
+          path: outputs/
+          retention-days: 30
+
+      - name: Publicar picks en el repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add outputs/
+          git commit -m "chore(picks): run ${{ github.run_id }}" || echo "Sin cambios"
+          git push
