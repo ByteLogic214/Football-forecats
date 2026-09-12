@@ -49,7 +49,7 @@ class Settings:
     form_weight: float = 0.60   # peso de forma reciente vs temporada completa
     home_boost: float = 1.12    # ventaja de localía (multiplicador de goles esperados)
     # Filtros de valor
-    min_edge: float = 0.04      # edge mínimo vs probabilidad implícita sin vig
+    min_edge: float = 0.02      # edge mínimo vs probabilidad implícita sin vig
     min_prob: float = 0.55
     max_picks: int = 8
     # Banca
